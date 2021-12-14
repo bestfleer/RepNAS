@@ -207,7 +207,7 @@ def main():
       train(args, train_queue, model, model_without_ddp, optimizer, arch_optimizer, lr_scheduler, wd_scheduler, i, mixup_fn, criterion_smooth, Writer)
       top1 = infer(valid_queue, model, criterion, i, Writer)
       if is_master():
-          print(model_without_ddps.sigmoid())
+          print(model_without_ddp.alphas.sigmoid())
           print("epoch:{} top1:{:3f}".format(i, top1))
           torch.save({'model': model_without_ddp.state_dict(),
                       'epoch': i+1,
