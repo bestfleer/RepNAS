@@ -1,0 +1,1 @@
+python valid.py --data /media/data/datasets/imagenet1k/ --mode supernet --pretrained ./logs/ckpt.pt
