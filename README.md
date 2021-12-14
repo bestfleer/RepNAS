@@ -1,7 +1,7 @@
 # RepNAS: Searching for Efficient Re-parameterizing Blocks
 Code accompanying the paper
 > RepNAS: Searching for Efficient Re-parameterizing Blocks\
-
+https://arxiv.org/abs/2109.03508
 ## Requirements
 ```
 Python == 3.8.8, PyTorch == 1.8.1, torchvision == 0.9.1
