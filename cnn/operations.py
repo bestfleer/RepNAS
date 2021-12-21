@@ -185,13 +185,13 @@ class AvgPoolBN(nn.Module):
     return x
 
   def copy_weights(self, weights):
-    self.conv.copy_weights(weights)
+    self.conv1.copy_weights(weights)
 
   def fuse_weights(self):
     weights_1x1, bias_1x1 = transI_fusebn(self.conv1.conv.weight, self.conv1.bn)
     weights_avg = transV_avg(self.conv1.conv.out_channels, 3, self.conv1.conv.groups)
     weights_avg, bias_avg = transI_fusebn(weights_avg, self.bn2)
-    return transIII_1x1_kxk(weights_1x1, bias_1x1, weights_avg, bias_avg, self.conv.conv.groups)
+    return transIII_1x1_kxk(weights_1x1, bias_1x1, weights_avg, bias_avg, self.conv1.conv.groups)
 
 class Conv1x1_Convkxk(nn.Module):
   def __init__(self, in_chs, out_chs, kernel_size,

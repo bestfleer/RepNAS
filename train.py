@@ -37,14 +37,15 @@ parser.add_argument('--mixup', action='store_true', help='using mixup')
 parser.add_argument('--autoaugment', action='store_true', help='using autoaugment')
 parser.add_argument('--smooth', action='store_true', help='using smooth CE')
 parser.add_argument('--report_freq', type=float, default=500, help='report frequency')
-parser.add_argument('--epochs', type=int, default=50, help='number of training epochs')
-parser.add_argument('--checkpoint_path', type=str, default='./checkpoint.pt', help='save checkpoint')
+parser.add_argument('--epochs', type=int, default=150, help='number of training epochs')
+parser.add_argument('--resume', action='store_true', help='resume from checkpoint')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--save', type=str, default='logs', help='experiment name')
 parser.add_argument('--random_epochs', type=int, default=15, help='number of random sample epochs')
-parser.add_argument('--fixed_epochs', type=int, default=0, help='number of fixed epochs.')
-parser.add_argument('--arch_lr', type=float, default=1e-3, help='learning rate for arch encoding')
-parser.add_argument('--arch_weight_decay', type=float, default=1e-4, help='weight decay for arch encoding')
+parser.add_argument('--fixed_epochs', type=int, default=100, help='number of fixed epochs.')
+parser.add_argument('--arch_lr', type=float, default=1e-4, help='learning rate for arch encoding')
+parser.add_argument('--arch_weight_decay', type=float, default=5e-4, help='weight decay for arch encoding')
+parser.add_argument('--kept_ratio', type=float, default=0.34, help='learning rate for arch encoding')
 parser.add_argument('--local_rank', type=int, default=0, help='number for current rank')
 
 
@@ -112,21 +113,20 @@ def main():
       weight_decay=args.arch_weight_decay
   )
   current_epoch = 0
-  if os.path.exists(os.path.join(args.save, 'ckpt.pt')):
+  if args.resume and os.path.exists(os.path.join(args.save, 'ckpt.pt')):
       print('loading checkpoint')
       checkpoint = torch.load(os.path.join(args.save, 'ckpt.pt'), map_location='cpu')
       current_epoch = checkpoint['epoch']
       state_dict = OrderedDict()
       for name, param in checkpoint['model'].items():
-        if 'alpha' not in name:
-            state_dict[name] = param
-      model.load_state_dict(state_dict, strict=False)
+        state_dict[name] = param
+      model.load_state_dict(state_dict)
       optimizer.load_state_dict(checkpoint['optimizer'])
       arch_optimizer.load_state_dict(checkpoint['arch_optimizer'])
       model.fixed_path = checkpoint['fixed_path']
   if is_master():
     print("total path = {}".format(model.original_ops))
-  model.constraint = 0.34
+  model.constraint = args.kept_ratio
   if args.distributed:
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu_id], find_unused_parameters=True)
     model_without_ddp = model.module
@@ -240,8 +240,9 @@ def train(args, train_queue, model, model_without_ddp, optimizer, arch_optimizer
             inputs, smooth_targets = mixup_fn(inputs, targets)
         else:
             inputs, smooth_targets = inputs, targets
-        logits = model(inputs)
+        logits, rank = model(inputs)
         loss = criterion(logits, smooth_targets)
+        #loss += 2 * (rank.sum() / rank.numel() - args.kept_ratio) ** 2
         loss.backward()
         nn.utils.clip_grad_norm(model_without_ddp.parameters(), 5)
         prec1, prec5 = utils.accuracy(logits, targets, topk=(1, 5))
@@ -281,7 +282,7 @@ def infer(valid_queue, model, criterion, epoch, Writer):
     for step, (input, target) in enumerate(valid_queue):
       input = input.cuda()
       target = target.cuda()
-      logits = model(input)
+      logits, _ = model(input)
       loss = criterion(logits, target)
 
       prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))

@@ -122,7 +122,7 @@ class RepVGG(nn.Module):
             x = self.dropout(x)
             x = x.view(x.size(0), -1)
             out = self.linear(x)
-            return out
+            return out, rank
         else:
             x = self.features(x)
             x = self.gap(x)
@@ -139,19 +139,19 @@ class RepVGG(nn.Module):
         else:
             masked_index = rank.view(-1).sort(descending=True)[1][:int(self.original_ops * self.constraint)]
             mask = torch.zeros_like(rank.view(-1), memory_format=torch.legacy_contiguous_format).scatter(0, masked_index, 1).reshape(rank.size())
+            #mask = (rank >= 0).float()
             rank = mask + rank.sigmoid() - rank.sigmoid().detach()
         return rank, mask
 
     def fixed_mask(self):
         self.eval()
-        rank = self._get_perturbation()
-        masked_index = rank.view(-1).sort(descending=True)[1][:int(self.original_ops * self.constraint)]
-        mask = torch.zeros_like(rank.view(-1)).scatter(0, masked_index, 1).reshape(rank.size())
+        masked_index = self.alphas.view(-1).sort(descending=True)[1][:int(self.original_ops * self.constraint)]
+        mask = torch.zeros_like(self.alphas.view(-1)).scatter(0, masked_index, 1).reshape(self.alphas.size())
         self.fixed_path = mask
         for m in self.modules():
             if isinstance(m, nn.BatchNorm2d):
                 m.reset_running_stats()
-        self.copy_weights()
+        #self.copy_weights()
 
     def copy_weights(self):
         for i, m in enumerate(self.features):

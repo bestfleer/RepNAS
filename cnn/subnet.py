@@ -16,7 +16,11 @@ class MixedOp(nn.Module):
   def __init__(self, in_channels, out_channels, groups, act_fn, mask, stride, affine=True, deploy=False):
     super(MixedOp, self).__init__()
     self.deploy = deploy
-    self.conv = ConvBnAct(in_channels, out_channels, 3, stride, affine, None)
+    self.stride = stride
+    self.in_channels = in_channels
+    self.out_channels = out_channels
+    self.groups = groups
+    #self.conv = ConvBnAct(in_channels, out_channels, 3, stride, affine, None)
     self._ops = nn.ModuleList()
     self.skip_connect = Identity(out_channels, groups, affine) if stride == 1 else None
     self.act_fn = act_fn
@@ -38,12 +42,10 @@ class MixedOp(nn.Module):
   def fuse_weights(self):
     assert hasattr(self, '_ops'), "init ops list first!"
     w, b = self.skip_connect.fuse_weights() if self.skip_connect is not None else (0, 0)
-    in_c, out_c, stride, padding, groups = self.conv.conv.in_channels, self.conv.conv.out_channels, \
-                                           self.conv.conv.stride, self.conv.conv.padding,\
-                                           self.conv.conv.groups
+    in_c, out_c, stride, groups = self.in_channels, self.out_channels, self.stride, self.groups
     w_l = [w]
     b_l = [b]
-    self.conv = nn.Conv2d(in_c, out_c, 3, stride, padding, groups=groups)
+    self.conv = nn.Conv2d(in_c, out_c, 3, stride, 1, groups=groups)
     for i, m in enumerate(self._ops):
         w, b = m.fuse_weights()
         w_l.append(w)
